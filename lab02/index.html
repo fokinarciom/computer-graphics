@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Variant 3</title>
+<style>
+:root {
+  --bg: #0b2a43;
+  --card: #07202f;
+  --accent: #2f9cff;
+  --muted: #9eb7c9;
+}
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: #eaf6ff;
+  margin: 0;
+  padding: 18px;
+}
+h1 { margin-bottom: 12px; font-size: 1.4rem; }
+.container { display: flex; flex-wrap: wrap; gap: 16px; }
+.card {
+  background: var(--card);
+  padding: 14px;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+.controls { flex: 0 0 340px; }
+.viewer { flex: 1 1 720px; min-width: 360px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.btn.secondary { background: #375a6f; }
+canvas { background: #111; border-radius: 8px; display: block; max-width: 100%; }
+label { font-weight: 600; }
+select, input[type="range"] {
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid #1a3b49;
+  background: #07232f;
+  color: #eaf6ff;
+}
+.small { font-size: 0.85rem; color: var(--muted); }
+.stat { margin-top: 8px; color: #bcd; }
+</style>
+</head>
+<body>
+<h1>Variant 3</h1>
+
+<div class="container">
+  <!-- Controls -->
+  <div class="card controls">
+    <label><strong>Upload image</strong></label>
+    <div class="row"><input id="file" type="file" accept="image/*"></div>
+
+    <div style="margin-top:12px">
+      <label>Sharpening filters</label>
+      <div class="row">
+        <button class="btn" id="sharpenKernel">Sharpen</button>
+        <button class="btn" id="unsharp">Unsharp Mask</button>
+      </div>
+      <div class="row">
+        <button class="btn secondary" id="compare">Compare methods</button>
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <label>Contrast enhancement</label>
+      <div class="row">
+        <button class="btn" id="linearStretch">Linear stretch</button>
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <label>Histogram equalization</label>
+      <div class="row">
+        <select id="heqMode">
+          <option value="gray">Grayscale (luminance)</option>
+          <option value="rgb">Each RGB channel</option>
+          <option value="hsv">Value (HSV)</option>
+        </select>
+        <button class="btn" id="equalize">Apply</button>
+      </div>
+    </div>
+
+    <div style="margin-top:12px">
+      <label>Compression (RLE)</label>
+      <div class="row">
+        <button class="btn" id="compress">Compress (RLE)</button>
+        <button class="btn" id="decompress">Decompress</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="downloadCompressed">Download .rle</button>
+        <input id="fileRLE" type="file" accept=".rle">
+      </div>
+      <div id="rleStats" class="small"></div>
+    </div>
+
+    <div style="margin-top:12px">
+      <div class="row">
+        <button class="btn" id="toGray">Convert to Grayscale</button>
+        <button class="btn" id="reset">Reset Image</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="downloadProc">Download processed.png</button>
+      </div>
+    </div>
+
+    <div class="stat" id="info">Please upload an image</div>
+  </div>
+
+  <!-- Viewer -->
+  <div class="card viewer">
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;text-align:center">
+        <strong>Original</strong>
+        <canvas id="orig" width="640" height="480"></canvas>
+      </div>
+      <div style="flex:1;text-align:center">
+        <strong>Processed</strong>
+        <canvas id="proc" width="640" height="480"></canvas>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px">
+      <div style="flex:1;text-align:center">
+        <strong>Luminance histogram – original</strong>
+        <canvas id="histBefore" width="512" height="140"></canvas>
+      </div>
+      <div style="flex:1;text-align:center">
+        <strong>Luminance histogram – processed</strong>
+        <canvas id="histAfter" width="512" height="140"></canvas>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px">
+      <div style="flex:1;text-align:center">
+        <strong>RGB histogram – original</strong>
+        <canvas id="histBeforeRGB" width="512" height="120"></canvas>
+      </div>
+      <div style="flex:1;text-align:center">
+        <strong>RGB histogram – processed</strong>
+        <canvas id="histAfterRGB" width="512" height="120"></canvas>
+      </div>
+    </div>
+
+    <div id="comparison" style="margin-top:12px;display:none">
+      <h4 style="margin:8px 0">Comparison of sharpening methods</h4>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="flex:1;text-align:center">
+          <canvas id="compKernel" width="320" height="200"></canvas>
+          <div class="small">Sharpen kernel</div>
+        </div>
+        <div style="flex:1;text-align:center">
+          <canvas id="compUnsharp" width="320" height="200"></canvas>
+          <div class="small">Unsharp mask</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==================== GLOBALS & HELPERS ==================== */
+const $ = id => document.getElementById(id);
+const origC = $('orig'), procC = $('proc'),
+      origCtx = origC.getContext('2d'), procCtx = procC.getContext('2d');
+let originalImageData = null, lastCompressed = null;
+
+function fitCanvasToImage(canvas, img, maxW=900){
+  const ratio = img.width / img.height;
+  const w = Math.min(img.width, maxW);
+  const h = Math.round(w / ratio);
+  canvas.width = w; canvas.height = h;
+}
+function luminance(r,g,b){ return Math.round(0.299*r + 0.587*g + 0.114*b); }
+
+/* ==================== LOAD IMAGE ==================== */
+$('file').addEventListener('change', e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  const url = URL.createObjectURL(f);
+  const img = new Image();
+  img.onload = ()=>{
+    fitCanvasToImage(origC, img); fitCanvasToImage(procC, img);
+    origCtx.drawImage(img,0,0,origC.width,origC.height);
+    procCtx.drawImage(img,0,0,procC.width,procC.height);
+    originalImageData = origCtx.getImageData(0,0,origC.width,origC.height);
+    renderAll();
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+});
+
+/* ==================== RESET IMAGE ==================== */
+$('reset').onclick = ()=>{
+  if(!originalImageData){ alert('No image loaded'); return; }
+  procCtx.putImageData(originalImageData,0,0);
+  renderAll();
+};
+
+/* ==================== HISTOGRAMS ==================== */
+function computeLumHistogram(imgData){
+  const hist = new Uint32Array(256);
+  const d = imgData.data;
+  for(let i=0;i<d.length;i+=4)
+    hist[luminance(d[i],d[i+1],d[i+2])]++;
+  return hist;
+}
+function computeRGBHist(imgData){
+  const r=new Uint32Array(256),g=new Uint32Array(256),b=new Uint32Array(256);
+  const d=imgData.data;
+  for(let i=0;i<d.length;i+=4){ r[d[i]]++; g[d[i+1]]++; b[d[i+2]]++; }
+  return {r,g,b};
+}
+function drawHist(canvas,hist,color='rgba(200,230,255,0.9)'){
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const max=Math.max(...hist);
+  const w=canvas.width/hist.length,h=canvas.height;
+  ctx.fillStyle=color;
+  for(let i=0;i<hist.length;i++){
+    const val=max?hist[i]/max:0;
+    const bh=val*(h-4);
+    ctx.fillRect(i*w,h-bh,w,bh);
+  }
+}
+function drawRGBHist(canvas,h){
+  const ctx=canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height);
+  const max=Math.max(...h.r,...h.g,...h.b);
+  const w=canvas.width/256,hgt=canvas.height;
+  ctx.fillStyle='rgba(255,0,0,0.5)';
+  for(let i=0;i<256;i++){const v=h.r[i]/max;ctx.fillRect(i*w,hgt-v*(hgt-4),w,v*(hgt-4));}
+  ctx.fillStyle='rgba(0,255,0,0.5)';
+  for(let i=0;i<256;i++){const v=h.g[i]/max;ctx.fillRect(i*w,hgt-v*(hgt-4),w,v*(hgt-4));}
+  ctx.fillStyle='rgba(0,120,255,0.5)';
+  for(let i=0;i<256;i++){const v=h.b[i]/max;ctx.fillRect(i*w,hgt-v*(hgt-4),w,v*(hgt-4));}
+}
+function renderAll(){
+  if(!originalImageData) return;
+  const procImg = procCtx.getImageData(0,0,procC.width,procC.height);
+  drawHist($('histBefore'), computeLumHistogram(originalImageData));
+  drawHist($('histAfter'), computeLumHistogram(procImg));
+  drawRGBHist($('histBeforeRGB'), computeRGBHist(originalImageData));
+  drawRGBHist($('histAfterRGB'), computeRGBHist(procImg));
+  $('info').textContent = `Size: ${procC.width}×${procC.height} px`;
+}
+
+/* ==================== SHARPENING ==================== */
+function convolve3x3(imgData,kernel){
+  const w=imgData.width,h=imgData.height,src=imgData.data;
+  const out=new Uint8ClampedArray(src.length);
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      let r=0,g=0,b=0;
+      for(let ky=-1;ky<=1;ky++){
+        const yy=Math.min(h-1,Math.max(0,y+ky));
+        for(let kx=-1;kx<=1;kx++){
+          const xx=Math.min(w-1,Math.max(0,x+kx));
+          const k=kernel[(ky+1)*3+(kx+1)];
+          const i=(yy*w+xx)*4;
+          r+=src[i]*k; g+=src[i+1]*k; b+=src[i+2]*k;
+        }
+      }
+      const i=(y*w+x)*4;
+      out[i]=Math.min(255,Math.max(0,Math.round(r)));
+      out[i+1]=Math.min(255,Math.max(0,Math.round(g)));
+      out[i+2]=Math.min(255,Math.max(0,Math.round(b)));
+      out[i+3]=src[i+3];
+    }
+  }
+  return new ImageData(out,w,h);
+}
+$('sharpenKernel').onclick=()=>{
+  if(!originalImageData){alert('Upload an image');return;}
+  const out=convolve3x3(originalImageData,[-1,-1,-1,-1,9,-1,-1,-1,-1]);
+  procCtx.putImageData(out,0,0); renderAll();
+};
+
+/* Unsharp Mask */
+function boxBlurSeparable(imgData,radius=1){
+  const w=imgData.width,h=imgData.height,src=imgData.data;
+  const tmp=new Float32Array(src.length),out=new Uint8ClampedArray(src.length);
+  const k=2*radius+1;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    let sr=0,sg=0,sb=0;
+    for(let i=-radius;i<=radius;i++){
+      const xx=Math.min(w-1,Math.max(0,x+i));
+      const idx=(y*w+xx)*4;
+      sr+=src[idx]; sg+=src[idx+1]; sb+=src[idx+2];
+    }
+    const idx=(y*w+x)*4;
+    tmp[idx]=sr/k; tmp[idx+1]=sg/k; tmp[idx+2]=sb/k; tmp[idx+3]=src[idx+3];
+  }
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    let sr=0,sg=0,sb=0;
+    for(let i=-radius;i<=radius;i++){
+      const yy=Math.min(h-1,Math.max(0,y+i));
+      const idx=(yy*w+x)*4;
+      sr+=tmp[idx]; sg+=tmp[idx+1]; sb+=tmp[idx+2];
+    }
+    const idx=(y*w+x)*4;
+    out[idx]=Math.round(sr/k); out[idx+1]=Math.round(sg/k); out[idx+2]=Math.round(sb/k); out[idx+3]=tmp[idx+3];
+  }
+  return new ImageData(out,w,h);
+}
+function unsharpMask(imgData,amount=1.2,radius=1){
+  const blurred=boxBlurSeparable(imgData,radius);
+  const out=new Uint8ClampedArray(imgData.data.length);
+  const src=imgData.data,b=blurred.data;
+  for(let i=0;i<src.length;i+=4){
+    for(let c=0;c<3;c++){
+      let v=src[i+c]+amount*(src[i+c]-b[i+c]);
+      out[i+c]=Math.min(255,Math.max(0,Math.round(v)));
+    }
+    out[i+3]=src[i+3];
+  }
+  return new ImageData(out,imgData.width,imgData.height);
+}
+$('unsharp').onclick=()=>{
+  if(!originalImageData){alert('Upload an image');return;}
+  const out=unsharpMask(originalImageData,1.2,1);
+  procCtx.putImageData(out,0,0); renderAll();
+};
+
+/* Compare */
+$('compare').onclick=async()=>{
+  if(!originalImageData){alert('Upload an image');return;}
+  const kImg=convolve3x3(originalImageData,[-1,-1,-1,-1,9,-1,-1,-1,-1]);
+  const uImg=unsharpMask(originalImageData,1.2,1);
+  const cK=$('compKernel'), cU=$('compUnsharp');
+  try{
+    const bmpK=await createImageBitmap(kImg);
+    cK.getContext('2d').drawImage(bmpK,0,0,cK.width,cK.height); bmpK.close?.();
+    const bmpU=await createImageBitmap(uImg);
+    cU.getContext('2d').drawImage(bmpU,0,0,cU.width,cU.height); bmpU.close?.();
+  }catch(e){
+    cK.width=kImg.width;cK.height=kImg.height;cK.getContext('2d').putImageData(kImg,0,0);
+    cU.width=uImg.width;cU.height=uImg.height;cU.getContext('2d').putImageData(uImg,0,0);
+  }
+  $('comparison').style.display='block';
+};
+
+/* ==================== LINEAR CONTRAST (universal) ==================== */
+function linearStretch(imgData){
+  const d=imgData.data; let min=255,max=0;
+  // Найти минимальный и максимальный яркостный уровень
+  for(let i=0;i<d.length;i+=4){
+    const y=luminance(d[i],d[i+1],d[i+2]);
+    if(y<min) min=y;
+    if(y>max) max=y;
+  }
+  const out=new Uint8ClampedArray(d.length);
+  for(let i=0;i<d.length;i+=4){
+    const y=luminance(d[i],d[i+1],d[i+2]);
+    const f = (y - min)/(max-min);
+    const ratio = f*255 / (y||1); // корректируем все каналы по яркости
+    for(let c=0;c<3;c++) out[i+c] = Math.min(255,Math.round(d[i+c]*ratio));
+    out[i+3]=d[i+3];
+  }
+  return new ImageData(out,imgData.width,imgData.height);
+}
+$('linearStretch').onclick=()=>{ 
+  if(!originalImageData){alert('Upload an image');return;}
+  const out=linearStretch(originalImageData);
+  procCtx.putImageData(out,0,0); renderAll();
+};
+
+/* ==================== HISTOGRAM EQUALIZATION ==================== */
+// Взято из последней рабочей версии, без изменений
+function equalizeHistogram(imgData,mode='gray'){
+  const d=imgData.data,w=imgData.width,h=imgData.height;
+  if(mode==='gray'){
+    const hist=new Uint32Array(256),cdf=new Float32Array(256);
+    for(let i=0;i<d.length;i+=4)hist[luminance(d[i],d[i+1],d[i+2])]++;
+    let cum=0,total=w*h;for(let i=0;i<256;i++){cum+=hist[i];cdf[i]=cum/total;}
+    const out=new Uint8ClampedArray(d.length);
+    for(let i=0;i<d.length;i+=4){
+      const y=luminance(d[i],d[i+1],d[i+2]);
+      const eq=Math.round(cdf[y]*255);
+      const ratio=eq/(y||1);
+      for(let c=0;c<3;c++)out[i+c]=Math.min(255,Math.max(0,Math.round(d[i+c]*ratio)));
+      out[i+3]=d[i+3];
+    }
+    return new ImageData(out,w,h);
+  }else if(mode==='rgb'){
+    const out=new Uint8ClampedArray(d.length);
+    for(let c=0;c<3;c++){
+      const hist=new Uint32Array(256),cdf=new Float32Array(256);
+      for(let i=0;i<d.length;i+=4)hist[d[i+c]]++;
+      let cum=0,total=w*h;for(let i=0;i<256;i++){cum+=hist[i];cdf[i]=cum/total;}
+      for(let i=0;i<d.length;i+=4)out[i+c]=Math.round(cdf[d[i+c]]*255);
+    }
+    for(let i=0;i<d.length;i+=4)out[i+3]=d[i+3];
+    return new ImageData(out,w,h);
+  }else if(mode==='hsv'){
+    const out=new Uint8ClampedArray(d.length);
+    function rgb2hsv(r,g,b){
+      const max=Math.max(r,g,b),min=Math.min(r,g,b),d=max-min;
+      let h,s,v=max;
+      s=max===0?0:d/max;
+      if(max===min)h=0;else{
+        switch(max){
+          case r:h=(g-b)/d+(g<b?6:0);break;
+          case g:h=(b-r)/d+2;break;
+          case b:h=(r-g)/d+4;break;
+        }
+        h/=6;
+      }
+      return [h,s,v/255];
+    }
+    function hsv2rgb(h,s,v){
+      let r,g,b,i=Math.floor(h*6),f=h*6-i,p=v*(1-s),q=v*(1-f*s),t=v*(1-(1-f)*s);
+      switch(i%6){case 0:r=v;g=t;b=p;break;case 1:r=q;g=v;b=p;break;
+      case 2:r=p;g=v;b=t;break;case 3:r=p;g=q;b=v;break;
+      case 4:r=t;g=p;b=v;break;case 5:r=v;g=p;b=q;break;}
+      return [r*255,g*255,b*255];
+    }
+    const vHist=new Uint32Array(256),cdf=new Float32Array(256);
+    const hsvs=[];
+    for(let i=0;i<d.length;i+=4){
+      const hsv=rgb2hsv(d[i],d[i+1],d[i+2]); hsvs.push(hsv);
+      vHist[Math.round(hsv[2]*255)]++;
+    }
+    let cum=0,total=w*h;for(let i=0;i<256;i++){cum+=vHist[i];cdf[i]=cum/total;}
+    for(let i=0;i<d.length;i+=4){
+      const hsv=hsvs[i/4];
+      const eqV=cdf[Math.round(hsv[2]*255)];
+      const [r,g,b]=hsv2rgb(hsv[0],hsv[1],eqV);
+      out[i]=r;out[i+1]=g;out[i+2]=b;out[i+3]=d[i+3];
+    }
+    return new ImageData(out,w,h);
+  }
+}
+$('equalize').onclick=()=>{
+  if(!originalImageData){alert('Upload an image');return;}
+  const mode=$('heqMode').value;
+  const out=equalizeHistogram(originalImageData,mode);
+  procCtx.putImageData(out,0,0);renderAll();
+};
+
+/* ==================== RLE COMPRESSION ==================== */
+$('compress').onclick=()=>{
+  const img=procCtx.getImageData(0,0,procC.width,procC.height);
+  const d=img.data;
+  let bytes=[img.width,img.height];
+  let count=1;
+  for(let i=4;i<d.length;i+=4){
+    const same=d[i]==d[i-4]&&d[i+1]==d[i-3]&&d[i+2]==d[i-2]&&d[i+3]==d[i-1];
+    if(same&&count<255)count++;
+    else{
+      bytes.push(count,d[i-4],d[i-3],d[i-2],d[i-1]);
+      count=1;
+    }
+  }
+  bytes.push(count,d[d.length-4],d[d.length-3],d[d.length-2],d[d.length-1]);
+  lastCompressed=new Uint8Array(bytes);
+  const ratio=(d.length/lastCompressed.length).toFixed(2);
+  $('rleStats').textContent=`RLE size: ${lastCompressed.length} bytes (original ${d.length}), ratio: ${ratio}`;
+};
+$('downloadCompressed').onclick=()=>{
+  if(!lastCompressed){alert('No compressed data');return;}
+  const blob=new Blob([lastCompressed],{type:'application/octet-stream'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='image.rle';a.click();
+};
+$('fileRLE').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  f.arrayBuffer().then(buf=>{
+    lastCompressed=new Uint8Array(buf);
+    $('rleStats').textContent=`Loaded ${f.name}, ${lastCompressed.length} bytes`;
+  });
+});
+$('decompress').onclick=()=>{
+  if(!lastCompressed){alert('No compressed file loaded');return;}
+  const arr=lastCompressed;
+  const w=arr[0],h=arr[1];
+  const out=new Uint8ClampedArray(w*h*4);
+  let pos=2,idx=0;
+  while(pos<arr.length){
+    const count=arr[pos++],r=arr[pos++],g=arr[pos++],b=arr[pos++],a=arr[pos++];
+    for(let i=0;i<count;i++){out[idx++]=r;out[idx++]=g;out[idx++]=b;out[idx++]=a;}
+  }
+  const img=new ImageData(out,w,h);
+  procCtx.putImageData(img,0,0);renderAll();
+};
+
+/* ==================== GRAYSCALE ==================== */
+$('toGray').onclick=()=>{
+  if(!originalImageData){alert('Upload an image');return;}
+  const src=originalImageData.data;
+  const out=new Uint8ClampedArray(src.length);
+  for(let i=0;i<src.length;i+=4){
+    const y=luminance(src[i],src[i+1],src[i+2]);
+    out[i]=out[i+1]=out[i+2]=y; out[i+3]=src[i+3];
+  }
+  const img=new ImageData(out,originalImageData.width,originalImageData.height);
+  procCtx.putImageData(img,0,0);renderAll();
+};
+
+/* ==================== DOWNLOAD ==================== */
+$('downloadProc').onclick=()=>{
+  const url=procC.toDataURL('image/png');
+  const a=document.createElement('a');a.href=url;a.download='processed.png';a.click();
+};
+</script>
+
+</body>
+</html>
