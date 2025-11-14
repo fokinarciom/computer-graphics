@@ -105,7 +105,7 @@ select, input[type="range"] {
 
     <div style="margin-top:12px">
       <div class="row">
-        <button class="btn" id="toGray">Convert to Grayscale</button>
+        
         <button class="btn" id="reset">Reset Image</button>
       </div>
       <div class="row">
@@ -326,7 +326,7 @@ function unsharpMask(imgData,amount=1.2,radius=1){
 }
 $('unsharp').onclick=()=>{
   if(!originalImageData){alert('Upload an image');return;}
-  const out=unsharpMask(originalImageData,1.2,1);
+  const out=unsharpMask(originalImageData,1.2,5);
   procCtx.putImageData(out,0,0); renderAll();
 };
 
@@ -351,7 +351,6 @@ $('compare').onclick=async()=>{
 /* ==================== LINEAR CONTRAST (universal) ==================== */
 function linearStretch(imgData){
   const d=imgData.data; let min=255,max=0;
-  // Найти минимальный и максимальный яркостный уровень
   for(let i=0;i<d.length;i+=4){
     const y=luminance(d[i],d[i+1],d[i+2]);
     if(y<min) min=y;
@@ -361,7 +360,7 @@ function linearStretch(imgData){
   for(let i=0;i<d.length;i+=4){
     const y=luminance(d[i],d[i+1],d[i+2]);
     const f = (y - min)/(max-min);
-    const ratio = f*255 / (y||1); // корректируем все каналы по яркости
+    const ratio = f*255 / (y||1); 
     for(let c=0;c<3;c++) out[i+c] = Math.min(255,Math.round(d[i+c]*ratio));
     out[i+3]=d[i+3];
   }
@@ -374,7 +373,6 @@ $('linearStretch').onclick=()=>{
 };
 
 /* ==================== HISTOGRAM EQUALIZATION ==================== */
-// Взято из последней рабочей версии, без изменений
 function equalizeHistogram(imgData,mode='gray'){
   const d=imgData.data,w=imgData.width,h=imgData.height;
   if(mode==='gray'){
@@ -447,21 +445,30 @@ $('equalize').onclick=()=>{
 };
 
 /* ==================== RLE COMPRESSION ==================== */
+
 $('compress').onclick=()=>{
   const img=procCtx.getImageData(0,0,procC.width,procC.height);
   const d=img.data;
-  let bytes=[img.width,img.height];
-  let count=1;
-  for(let i=4;i<d.length;i+=4){
-    const same=d[i]==d[i-4]&&d[i+1]==d[i-3]&&d[i+2]==d[i-2]&&d[i+3]==d[i-1];
-    if(same&&count<255)count++;
-    else{
-      bytes.push(count,d[i-4],d[i-3],d[i-2],d[i-1]);
-      count=1;
+  let bytes = [];
+  let count = 1;
+  
+
+  bytes.push(img.width & 0xFF, (img.width >> 8) & 0xFF);  
+  bytes.push(img.height & 0xFF, (img.height >> 8) & 0xFF);
+  
+  for(let i=4; i<d.length; i+=4){
+    const same = d[i]==d[i-4] && d[i+1]==d[i-3] && d[i+2]==d[i-2] && d[i+3]==d[i-1];
+    if(same && count < 255) {
+      count++;
+    } else {
+      bytes.push(count, d[i-4], d[i-3], d[i-2], d[i-1]);
+      count = 1;
     }
   }
-  bytes.push(count,d[d.length-4],d[d.length-3],d[d.length-2],d[d.length-1]);
-  lastCompressed=new Uint8Array(bytes);
+  
+  bytes.push(count, d[d.length-4], d[d.length-3], d[d.length-2], d[d.length-1]);
+  lastCompressed = new Uint8Array(bytes);
+  
   const ratio=(d.length/lastCompressed.length).toFixed(2);
   $('rleStats').textContent=`RLE size: ${lastCompressed.length} bytes (original ${d.length}), ratio: ${ratio}`;
 };
@@ -473,35 +480,36 @@ $('downloadCompressed').onclick=()=>{
 $('fileRLE').addEventListener('change',e=>{
   const f=e.target.files[0];if(!f)return;
   f.arrayBuffer().then(buf=>{
-    lastCompressed=new Uint8Array(buf);
-    $('rleStats').textContent=`Loaded ${f.name}, ${lastCompressed.length} bytes`;
+    lastCompressed= new Uint8Array(buf);
+      $('rleStats').textContent=`Loaded ${f.name}, ${lastCompressed.length} bytes`;
   });
 });
 $('decompress').onclick=()=>{
   if(!lastCompressed){alert('No compressed file loaded');return;}
   const arr=lastCompressed;
-  const w=arr[0],h=arr[1];
+
+  const w = arr[0] | (arr[1] << 8);   
+  const h = arr[2] | (arr[3] << 8);
+   
+  procC.width = w;
+  procC.height = h;
+  
   const out=new Uint8ClampedArray(w*h*4);
-  let pos=2,idx=0;
-  while(pos<arr.length){
-    const count=arr[pos++],r=arr[pos++],g=arr[pos++],b=arr[pos++],a=arr[pos++];
-    for(let i=0;i<count;i++){out[idx++]=r;out[idx++]=g;out[idx++]=b;out[idx++]=a;}
+  let pos=4, idx=0;
+  while(pos < arr.length && idx < out.length){
+    const count=arr[pos++];
+    const r=arr[pos++];
+    const g=arr[pos++];
+    const b=arr[pos++];
+    const a=arr[pos++];
+    
+    for(let i=0; i<count && idx < out.length; i++){
+      out[idx++]=r; out[idx++]=g; out[idx++]=b; out[idx++]=a;
+    }
   }
   const img=new ImageData(out,w,h);
-  procCtx.putImageData(img,0,0);renderAll();
-};
-
-/* ==================== GRAYSCALE ==================== */
-$('toGray').onclick=()=>{
-  if(!originalImageData){alert('Upload an image');return;}
-  const src=originalImageData.data;
-  const out=new Uint8ClampedArray(src.length);
-  for(let i=0;i<src.length;i+=4){
-    const y=luminance(src[i],src[i+1],src[i+2]);
-    out[i]=out[i+1]=out[i+2]=y; out[i+3]=src[i+3];
-  }
-  const img=new ImageData(out,originalImageData.width,originalImageData.height);
-  procCtx.putImageData(img,0,0);renderAll();
+  procCtx.putImageData(img,0,0);
+  renderAll();
 };
 
 /* ==================== DOWNLOAD ==================== */
